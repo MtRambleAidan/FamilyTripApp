@@ -1,0 +1,28 @@
+export const expenses = [
+  {
+    id: 1,
+    date: "2027-01-13",
+    title: "푸켓 공항 픽업",
+    category: "교통",
+    originalAmount: 60000,
+    currency: "KRW",
+    exchangeRate: 1,
+    amount: 60000,
+    paidBy: "수현이네",
+    split: "두 가족 1/2",
+    memo: "예약 예정",
+  },
+  {
+    id: 2,
+    date: "2027-01-13",
+    title: "마사지 예약금",
+    category: "마사지",
+    originalAmount: 120000,
+    currency: "KRW",
+    exchangeRate: 1,
+    amount: 120000,
+    paidBy: "은희네",
+    split: "두 가족 1/2",
+    memo: "예약 후 영수증 사진 추가 예정",
+  },
+];

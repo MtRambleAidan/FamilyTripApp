@@ -1,0 +1,38 @@
+export const places = [
+  {
+    id: 1,
+    type: "맛집",
+    name: "푸켓 맛집 후보",
+    status: "후보",
+    area: "푸켓",
+    mapUrl: "https://maps.google.com",
+    memo: "가보고 싶은 식당 후보",
+  },
+  {
+    id: 2,
+    type: "마사지",
+    name: "오아시스 스파",
+    status: "후보",
+    area: "푸켓",
+    mapUrl: "https://maps.google.com",
+    memo: "예약 전 후보",
+  },
+  {
+    id: 3,
+    type: "관광지",
+    name: "마리나 베이 샌즈",
+    status: "확정",
+    area: "싱가포르",
+    mapUrl: "https://maps.google.com",
+    memo: "은희네 싱가포르 일정 후보/확정",
+  },
+  {
+    id: 4,
+    type: "교통",
+    name: "푸켓 택시 앱 링크",
+    status: "확정",
+    area: "푸켓",
+    mapUrl: "https://maps.google.com",
+    memo: "필요할 때 호출할 택시 앱 링크 넣기",
+  },
+];
