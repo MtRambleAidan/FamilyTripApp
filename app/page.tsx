@@ -14,6 +14,7 @@ import { places } from "@/data/places";
 import OpinionTab from "@/components/OpinionTab";
 import { comments } from "@/data/comments";
 import type { CommentItem } from "@/types/trip";
+import { supabase } from "@/lib/supabase";
 
 
 
@@ -95,11 +96,30 @@ export default function Home() {
   );
 
   useEffect(() => {
-    const savedPlaces = localStorage.getItem("FamilyTripPlaces");
+    const fetchPlaces = async () => {
+      const { data, error } = await supabase
+        .from("places")
+        .select("*")
+        .order("id", { ascending: false });
 
-    if (savedPlaces) {
-      setPlaceList(JSON.parse(savedPlaces));
-    }
+      console.log("🔥 장소 불러오기:", data, error);
+
+      if (data) {
+        const formatted = data.map((item: any) => ({
+          id: item.id,
+          type: item.type,
+          name: item.name,
+          status: item.status,
+          area: item.area,
+          mapUrl: item.map_url,
+          memo: item.memo,
+        }));
+
+        setPlaceList(formatted);
+      }
+    };
+
+    fetchPlaces();
   }, []);
 
   useEffect(() => {
@@ -107,11 +127,34 @@ export default function Home() {
   }, [placeList]);
 
   useEffect(() => {
-    const savedExpenses = localStorage.getItem("FamilyTripExpenses");
+    const fetchExpenses = async () => {
+      const { data, error } = await supabase
+        .from("expenses")
+        .select("*")
+        .order("id", { ascending: false });
 
-    if (savedExpenses) {
-      setExpenseList(JSON.parse(savedExpenses));
-    }
+      console.log("🔥 비용 불러오기:", data, error);
+
+      if (data) {
+        const formatted = data.map((item: any) => ({
+          id: item.id,
+          date: item.date,
+          title: item.title,
+          category: item.category,
+          originalAmount: item.original_amount,
+          currency: item.currency,
+          exchangeRate: item.exchange_rate,
+          amount: item.amount,
+          paidBy: item.paid_by,
+          split: "두 가족 1/2",
+          memo: item.memo,
+        }));
+
+        setExpenseList(formatted);
+      }
+    };
+
+    fetchExpenses();
   }, []);
 
   useEffect(() => {
@@ -119,11 +162,21 @@ export default function Home() {
   }, [expenseList]);
 
   useEffect(() => {
-    const savedBookings = localStorage.getItem("FamilyTripBookings");
+    const fetchBookings = async () => {
+      const { data, error } = await supabase
+        .from("bookings")
+        .select("*")
+        .order("id", { ascending: false });
 
-    if (savedBookings) {
-      setBookingList(JSON.parse(savedBookings));
-    }
+      console.log("🔥 서버 데이터:", data);
+      console.log("🔥 서버 에러:", error);
+
+      if (data) {
+        setBookingList(data);
+      }
+    };
+
+    fetchBookings();
   }, []);
 
   useEffect(() => {
@@ -255,7 +308,7 @@ export default function Home() {
     (selectedPlaceStatus === "전체" || item.status === selectedPlaceStatus)
   );
 
-  const addPlace = () => {
+  const addPlace = async () => {
     if (newPlaceName.trim() === "") {
       alert("장소 이름을 입력해주세요.");
       return;
@@ -277,6 +330,26 @@ export default function Home() {
     };
 
     if (editingPlaceId !== null) {
+      // 🔥 서버 수정
+      const { error } = await supabase
+        .from("places")
+        .update({
+          type: newPlaceType,
+          name: newPlaceName,
+          status: newPlaceStatus,
+          area: newPlaceArea,
+          map_url: newPlaceMapUrl,
+          memo: newPlaceMemo,
+        })
+        .eq("id", editingPlaceId);
+
+      console.log("🔥 장소 수정:", error);
+
+      if (error) {
+        alert("수정 실패: " + error.message);
+        return;
+      }
+
       setPlaceList(
         placeList.map((item) =>
           item.id === editingPlaceId ? newPlace : item
@@ -285,6 +358,30 @@ export default function Home() {
 
       setEditingPlaceId(null);
     } else {
+      // 🔥 서버 추가
+      const { data, error } = await supabase
+        .from("places")
+        .insert([
+          {
+            type: newPlaceType,
+            name: newPlaceName,
+            status: newPlaceStatus,
+            area: newPlaceArea,
+            map_url: newPlaceMapUrl,
+            memo: newPlaceMemo,
+          },
+        ])
+        .select();
+
+      console.log("🔥 장소 추가:", data, error);
+
+      if (error) {
+        alert("저장 실패: " + error.message);
+        return;
+      }
+
+      newPlace.id = data[0].id;
+
       setPlaceList([newPlace, ...placeList]);
     }
 
@@ -293,29 +390,50 @@ export default function Home() {
     setNewPlaceMemo("");
   };
 
-  const deletePlace = (id: number, name: string) => {
+  const deletePlace = async (id: number, name: string) => {
     const confirmed = confirm(`"${name}" 장소를 삭제하시겠습니까?`);
-
     if (!confirmed) return;
 
-    setPlaceList(placeList.filter((item) => item.id !== id));
-  }; 
+    const { error } = await supabase
+      .from("places")
+      .delete()
+      .eq("id", id);
 
-  const changePlaceStatus = (id: number) => {
+    console.log("🔥 장소 삭제:", error);
+
+    if (error) {
+      alert("삭제 실패: " + error.message);
+      return;
+    }
+
+    setPlaceList(placeList.filter((item) => item.id !== id));
+  };
+
+  const changePlaceStatus = async (id: number) => {
     const statusOrder = ["후보", "확정", "예약완료", "방문완료"];
 
+    const target = placeList.find((item) => item.id === id);
+    if (!target) return;
+
+    const currentIndex = statusOrder.indexOf(target.status);
+    const nextStatus = statusOrder[(currentIndex + 1) % statusOrder.length];
+
+    const { error } = await supabase
+      .from("places")
+      .update({ status: nextStatus })
+      .eq("id", id);
+
+    console.log("🔥 장소 상태변경:", error);
+
+    if (error) {
+      alert("상태 변경 실패: " + error.message);
+      return;
+    }
+
     setPlaceList(
-      placeList.map((item) => {
-        if (item.id !== id) return item;
-
-        const currentIndex = statusOrder.indexOf(item.status);
-        const nextIndex = (currentIndex + 1) % statusOrder.length;
-
-        return {
-          ...item,
-          status: statusOrder[nextIndex],
-        };
-      })
+      placeList.map((item) =>
+        item.id === id ? { ...item, status: nextStatus } : item
+      )
     );
   };
 
@@ -378,7 +496,7 @@ export default function Home() {
     setNewPlaceMemo("");
   };
 
-  const addExpense = () => {
+  const addExpense = async () => {
     if (newExpenseTitle.trim() === "") {
       alert("비용 항목을 입력해주세요.");
       return;
@@ -403,6 +521,7 @@ export default function Home() {
 
     const amountInKrw =
       newExpenseCurrency === "KRW" ? amount : amount * exchangeRate;
+
     const newExpense = {
       id: editingExpenseId ?? Date.now(),
       date: newExpenseDate,
@@ -418,13 +537,65 @@ export default function Home() {
     };
 
     if (editingExpenseId !== null) {
+      // 🔥 수정 (UPDATE)
+      const { error } = await supabase
+        .from("expenses")
+        .update({
+          date: newExpenseDate,
+          title: newExpenseTitle,
+          category: newExpenseCategory,
+          original_amount: amount,
+          currency: newExpenseCurrency,
+          exchange_rate: exchangeRate,
+          amount: amountInKrw,
+          paid_by: newExpensePaidBy,
+          memo: newExpenseMemo,
+        })
+        .eq("id", editingExpenseId);
+
+      console.log("🔥 비용 수정:", error);
+
+      if (error) {
+        alert("수정 실패: " + error.message);
+        return;
+      }
+
       setExpenseList(
         expenseList.map((item) =>
           item.id === editingExpenseId ? newExpense : item
         )
       );
+
       setEditingExpenseId(null);
     } else {
+      // 🔥 추가 (INSERT)
+      const { data, error } = await supabase
+        .from("expenses")
+        .insert([
+          {
+            date: newExpenseDate,
+            title: newExpenseTitle,
+            category: newExpenseCategory,
+            original_amount: amount,
+            currency: newExpenseCurrency,
+            exchange_rate: exchangeRate,
+            amount: amountInKrw,
+            paid_by: newExpensePaidBy,
+            memo: newExpenseMemo,
+          },
+        ])
+        .select();
+
+      console.log("🔥 비용 추가:", data, error);
+
+      if (error) {
+        alert("저장 실패: " + error.message);
+        return;
+      }
+
+      // 서버 id 반영
+      newExpense.id = data[0].id;
+
       setExpenseList([newExpense, ...expenseList]);
     }
 
@@ -433,10 +604,21 @@ export default function Home() {
     setNewExpenseMemo("");
   };
 
-  const deleteExpense = (id: number, title: string) => {
+  const deleteExpense = async (id: number, title: string) => {
     const confirmed = confirm(`"${title}" 비용을 삭제하시겠습니까?`);
-
     if (!confirmed) return;
+
+    const { error } = await supabase
+      .from("expenses")
+      .delete()
+      .eq("id", id);
+
+    console.log("🔥 비용 삭제:", error);
+
+    if (error) {
+      alert("삭제 실패: " + error.message);
+      return;
+    }
 
     setExpenseList(expenseList.filter((item) => item.id !== id));
   };
@@ -474,8 +656,9 @@ export default function Home() {
     setNewExpensePaidBy("수현이네");
     setNewExpenseMemo("");
   };
+  const addBooking = async () => {
+    console.log("🔥 addBooking 실행됨");
 
-  const addBooking = () => {
     if (newBookingTitle.trim() === "") {
       alert("예약 제목을 입력해주세요.");
       return;
@@ -492,44 +675,115 @@ export default function Home() {
     };
 
     if (editingBookingId !== null) {
+      // 1️⃣ 서버 수정
+      const { error } = await supabase
+        .from("bookings")
+        .update({
+          type: newBookingType,
+          title: newBookingTitle,
+          date: newBookingDate,
+          family: newBookingFamily,
+          status: newBookingStatus,
+          detail: newBookingDetail,
+        })
+        .eq("id", editingBookingId);
+
+      console.log("🔥 수정 에러:", error);
+
+      if (error) {
+        alert("수정 실패: " + error.message);
+        return;
+      }
+
+      // 2️⃣ 화면 업데이트
       setBookingList(
         bookingList.map((item) =>
           item.id === editingBookingId ? newBooking : item
         )
       );
+
       setEditingBookingId(null);
     } else {
+      // 3️⃣ 신규 추가 (기존 insert 유지)
+      const { error } = await supabase
+        .from("bookings")
+        .insert([
+          {
+            type: newBookingType,
+            title: newBookingTitle,
+            date: newBookingDate,
+            family: newBookingFamily,
+            status: newBookingStatus,
+          },
+        ]);
+
+      console.log("🔥 추가 에러:", error);
+
+      if (error) {
+        alert("저장 실패: " + error.message);
+        return;
+      }
+
       setBookingList([newBooking, ...bookingList]);
     }
 
+    // 4️⃣ 입력 초기화
     setNewBookingTitle("");
     setNewBookingDate("");
     setNewBookingDetail("");
   };
+  
 
-  const deleteBooking = (id: number, title: string) => {
+  const deleteBooking = async (id: number, title: string) => {
     const confirmed = confirm(`"${title}" 예약을 삭제하시겠습니까?`);
-
     if (!confirmed) return;
 
+    // 1️⃣ 서버에서 먼저 삭제
+    const { error } = await supabase
+      .from("bookings")
+      .delete()
+      .eq("id", id);
+
+    console.log("🔥 삭제 에러:", error);
+
+    if (error) {
+      alert("삭제 실패: " + error.message);
+      return;
+    }
+
+    // 2️⃣ 화면에서도 삭제
     setBookingList(bookingList.filter((item) => item.id !== id));
   };
 
-  const changeBookingStatus = (id: number) => {
+  const changeBookingStatus = async (id: number) => {
     const statusOrder = ["후보", "예약대기", "예약완료", "취소"];
 
+    const target = bookingList.find((item) => item.id === id);
+    if (!target) return;
+
+    const currentIndex = statusOrder.indexOf(target.status ?? "후보");
+    const nextStatus = statusOrder[(currentIndex + 1) % statusOrder.length];
+
+    // 1️⃣ 서버 업데이트
+    const { error } = await supabase
+      .from("bookings")
+      .update({ status: nextStatus })
+      .eq("id", id);
+
+    console.log("🔥 상태변경 에러:", error);
+
+    if (error) {
+      alert("상태 변경 실패: " + error.message);
+      return;
+    }
+
+    // 2️⃣ 화면 반영
     setBookingList(
-      bookingList.map((item) => {
-        if (item.id !== id) return item;
-
-        const currentIndex = statusOrder.indexOf(item.status ?? "후보");
-        const nextIndex = (currentIndex + 1) % statusOrder.length;
-
-        return {
-          ...item,
-          status: statusOrder[nextIndex],
-        };
-      })
+      bookingList.map((item) =>
+        item.id === id
+          ? { ...item, status: nextStatus }
+          : item
+      )
     );
   };
 
